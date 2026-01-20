@@ -165,12 +165,54 @@ export default function TradeResults({ calculation }: TradeResultsProps) {
                 </span>
               </div>
               <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Actual dollar risk:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatCurrency(calculation.actualDollarRisk)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Risk utilization:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatNumber(calculation.riskUtilization, 1)}%
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Unused risk:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatCurrency(calculation.unusedRisk)}
+                </span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">Trailing amount:</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">
                   {formatCurrency(calculation.trailingAmount)}
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* Capital Commitment */}
+          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-3">
+              Capital Commitment (Informational)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Position cost:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatCurrency(calculation.totalCost)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">% of account:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatNumber(calculation.percentOfAccount, 1)}%
+                </span>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-500">
+              Position size is determined solely by risk per share, not by capital or conviction
+            </p>
           </div>
 
           {/* Reward Metrics */}

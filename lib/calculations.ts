@@ -18,13 +18,22 @@ export function validateTradeInputs(inputs: TradeInputs): ValidationResult {
     errors.push('Account size must be greater than zero');
   }
 
-  // Risk percent validation
-  if (inputs.riskPercent <= 0) {
-    errors.push('Risk percent must be greater than zero');
-  } else if (inputs.riskPercent > 5) {
-    warnings.push('Risk exceeds 5% per trade - consider reducing');
-  } else if (inputs.riskPercent > 2) {
-    warnings.push('Risk exceeds 2% per trade - high risk level');
+  // Risk validation
+  if (inputs.useFixedDollarRisk) {
+    if (inputs.fixedDollarRisk <= 0) {
+      errors.push('Fixed dollar risk must be greater than zero');
+    }
+    if (inputs.fixedDollarRisk > inputs.accountSize) {
+      warnings.push('Fixed dollar risk exceeds total account size');
+    }
+  } else {
+    if (inputs.riskPercent <= 0) {
+      errors.push('Risk percent must be greater than zero');
+    } else if (inputs.riskPercent > 5) {
+      warnings.push('Risk exceeds 5% per trade - consider reducing');
+    } else if (inputs.riskPercent > 2) {
+      warnings.push('Risk exceeds 2% per trade - high risk level');
+    }
   }
 
   // Entry price validation
@@ -113,8 +122,13 @@ export function calculateTargetPrice(
  */
 export function calculateMaxDollarRisk(
   accountSize: number,
-  riskPercent: number
+  riskPercent: number,
+  useFixedDollarRisk: boolean,
+  fixedDollarRisk: number
 ): number {
+  if (useFixedDollarRisk) {
+    return fixedDollarRisk;
+  }
   return (accountSize * riskPercent) / 100;
 }
 
@@ -209,11 +223,15 @@ export function calculateTrade(inputs: TradeInputs): TradeCalculation {
       riskPerShare: 0,
       maxDollarRisk: 0,
       positionSize: 0,
+      actualDollarRisk: 0,
+      riskUtilization: 0,
+      unusedRisk: 0,
       targetDistance: 0,
       totalReward: 0,
       rMultiple: inputs.targetRMultiple,
       totalCost: 0,
       dollarRisk: 0,
+      percentOfAccount: 0,
       trailingAmount: 0,
     };
   }
@@ -226,15 +244,22 @@ export function calculateTrade(inputs: TradeInputs): TradeCalculation {
     inputs.direction
   );
 
-  // Calculate risk per share
+  // Calculate risk per share (this is the foundation of position sizing)
   const riskPerShare = Math.abs(inputs.entryPrice - stopPrice);
 
-  // Calculate position sizing
+  // Calculate position sizing based ONLY on risk
   const maxDollarRisk = calculateMaxDollarRisk(
     inputs.accountSize,
-    inputs.riskPercent
+    inputs.riskPercent,
+    inputs.useFixedDollarRisk,
+    inputs.fixedDollarRisk
   );
   const positionSize = calculatePositionSize(maxDollarRisk, riskPerShare);
+
+  // Calculate actual risk metrics
+  const actualDollarRisk = positionSize * riskPerShare;
+  const unusedRisk = maxDollarRisk - actualDollarRisk;
+  const riskUtilization = maxDollarRisk > 0 ? (actualDollarRisk / maxDollarRisk) * 100 : 0;
 
   // Warnings for position size
   const warnings = [...validation.warnings];
@@ -250,12 +275,13 @@ export function calculateTrade(inputs: TradeInputs): TradeCalculation {
     inputs.direction
   );
 
-  // Calculate rewards
+  // Calculate rewards (informational only - does NOT affect position size)
   const totalReward = positionSize * targetDistance;
 
   // Calculate actual dollar amounts
   const totalCost = positionSize * inputs.entryPrice;
-  const dollarRisk = positionSize * riskPerShare;
+  const dollarRisk = actualDollarRisk;
+  const percentOfAccount = inputs.accountSize > 0 ? (totalCost / inputs.accountSize) * 100 : 0;
 
   // Calculate trailing stop amount
   const trailingAmount = calculateTrailingAmount(
@@ -276,11 +302,15 @@ export function calculateTrade(inputs: TradeInputs): TradeCalculation {
     riskPerShare,
     maxDollarRisk,
     positionSize,
+    actualDollarRisk,
+    riskUtilization,
+    unusedRisk,
     targetDistance,
     totalReward,
     rMultiple: inputs.targetRMultiple,
     totalCost,
     dollarRisk,
+    percentOfAccount,
     trailingAmount,
   };
 

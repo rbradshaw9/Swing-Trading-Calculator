@@ -8,7 +8,11 @@ export interface TradeInputs {
   entryPrice: number;
   atr: number;
   accountSize: number;
-  riskPercent: number;
+  
+  // Risk tolerance (choose one method)
+  useFixedDollarRisk: boolean;
+  riskPercent: number; // Used when useFixedDollarRisk = false
+  fixedDollarRisk: number; // Used when useFixedDollarRisk = true
   
   // ATR-based multiples (with defaults)
   stopMultiple: number; // ATR multiple for stop distance
@@ -37,6 +41,9 @@ export interface TradeCalculation {
   riskPerShare: number; // abs(entry - stop)
   maxDollarRisk: number;
   positionSize: number;
+  actualDollarRisk: number; // Actual risk after rounding
+  riskUtilization: number; // % of max risk actually used
+  unusedRisk: number; // Dollar amount not used due to rounding
   
   // Reward calculations
   targetDistance: number;
@@ -46,6 +53,7 @@ export interface TradeCalculation {
   // Display values
   totalCost: number;
   dollarRisk: number;
+  percentOfAccount: number; // % of account size committed to position
   
   // Trailing stop
   trailingAmount: number; // ATR × trailingMultiple
