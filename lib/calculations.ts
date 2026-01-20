@@ -3,7 +3,7 @@
  * All functions are side-effect free and deterministic.
  */
 
-import type { TradeInputs, TradeCalculation, ValidationResult } from './types';
+import type { TradeInputs, TradeCalculation, ValidationResult, TOSOrderTicket } from './types';
 
 /**
  * Validates trade inputs for logical consistency
@@ -154,6 +154,64 @@ export function validateTarget(
 }
 
 /**
+ * Calculates Thinkorswim order ticket values
+ */
+export function calculateTOSOrder(
+  entryPrice: number,
+  stopPrice: number,
+  targetPrice: number | undefined,
+  positionSize: number,
+  direction: 'long' | 'short' | 'unknown',
+  entryBufferCents: number = 0,
+  trailingStopAmount: number = 0
+): TOSOrderTicket | undefined {
+  if (direction === 'unknown' || positionSize === 0) {
+    return undefined;
+  }
+
+  const bufferDollars = entryBufferCents / 100;
+
+  // Calculate entry order values
+  const entryStopPrice = entryPrice;
+  let entryLimitPrice: number;
+
+  if (direction === 'long') {
+    // Long: limit price is ABOVE stop (add buffer)
+    entryLimitPrice = entryStopPrice + bufferDollars;
+  } else {
+    // Short: limit price is BELOW stop (subtract buffer)
+    entryLimitPrice = entryStopPrice - bufferDollars;
+  }
+
+  // Calculate trailing stop amount with proper sign
+  let trailingAmount: number | undefined;
+  if (trailingStopAmount > 0) {
+    if (direction === 'long') {
+      // Long: trailing stop uses NEGATIVE value
+      trailingAmount = -Math.abs(trailingStopAmount);
+    } else {
+      // Short: trailing stop uses POSITIVE value
+      trailingAmount = Math.abs(trailingStopAmount);
+    }
+  }
+
+  const order: TOSOrderTicket = {
+    entryType: direction === 'long' ? 'BUY STOP LIMIT' : 'SELL STOP LIMIT',
+    entryStopPrice,
+    entryLimitPrice,
+    quantity: positionSize,
+    profitTargetType: direction === 'long' ? 'SELL LIMIT' : 'BUY LIMIT',
+    profitTargetPrice: targetPrice,
+    trailingStopType: direction === 'long' ? 'SELL TRAILSTOP' : 'BUY TRAILSTOP',
+    trailingStopMark: 'MARK',
+    trailingStopAmount: trailingAmount,
+    advancedOrder: '1st Triggers OCO',
+  };
+
+  return order;
+}
+
+/**
  * Main calculation function - computes all trade metrics
  */
 export function calculateTrade(inputs: TradeInputs): TradeCalculation {
@@ -246,6 +304,19 @@ export function calculateTrade(inputs: TradeInputs): TradeCalculation {
       }
     }
   }
+
+  // Calculate TOS order ticket
+  const tosOrder = calculateTOSOrder(
+    inputs.entryPrice,
+    inputs.stopPrice,
+    inputs.targetPrice,
+    positionSize,
+    direction,
+    inputs.entryBufferCents,
+    inputs.trailingStopAmount
+  );
+
+  result.tosOrder = tosOrder;
 
   return result;
 }

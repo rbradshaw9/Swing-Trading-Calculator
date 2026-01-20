@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { calculateTrade } from '@/lib/calculations';
 import type { TradeInputs } from '@/lib/types';
 import TradeResults from '@/components/TradeResults';
+import TOSOrderDisplay from '@/components/TOSOrderDisplay';
 
 export default function TradeCalculator() {
   const [accountSize, setAccountSize] = useState<string>('10000');
@@ -11,6 +12,8 @@ export default function TradeCalculator() {
   const [entryPrice, setEntryPrice] = useState<string>('');
   const [stopPrice, setStopPrice] = useState<string>('');
   const [targetPrice, setTargetPrice] = useState<string>('');
+  const [entryBufferCents, setEntryBufferCents] = useState<string>('5');
+  const [trailingStopAmount, setTrailingStopAmount] = useState<string>('');
 
   // Parse inputs and calculate trade
   const calculation = useMemo(() => {
@@ -20,10 +23,12 @@ export default function TradeCalculator() {
       entryPrice: parseFloat(entryPrice) || 0,
       stopPrice: parseFloat(stopPrice) || 0,
       targetPrice: targetPrice ? parseFloat(targetPrice) : undefined,
+      entryBufferCents: entryBufferCents ? parseFloat(entryBufferCents) : 0,
+      trailingStopAmount: trailingStopAmount ? parseFloat(trailingStopAmount) : 0,
     };
 
     return calculateTrade(inputs);
-  }, [accountSize, riskPercent, entryPrice, stopPrice, targetPrice]);
+  }, [accountSize, riskPercent, entryPrice, stopPrice, targetPrice, entryBufferCents, trailingStopAmount]);
 
   const hasRequiredInputs = entryPrice && stopPrice && accountSize && riskPercent;
 
@@ -155,8 +160,69 @@ export default function TradeCalculator() {
         </p>
       </section>
 
+      {/* TOS Order Settings */}
+      <section className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          Order Entry Settings
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label
+              htmlFor="entryBufferCents"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            >
+              Entry Limit Buffer (cents)
+            </label>
+            <input
+              id="entryBufferCents"
+              type="number"
+              value={entryBufferCents}
+              onChange={(e) => setEntryBufferCents(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md 
+                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                       focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="5"
+              step="1"
+              min="0"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+              Long: adds to stop | Short: subtracts from stop
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="trailingStopAmount"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            >
+              Trailing Stop Amount ($)
+            </label>
+            <input
+              id="trailingStopAmount"
+              type="number"
+              value={trailingStopAmount}
+              onChange={(e) => setTrailingStopAmount(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md 
+                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                       focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="0.50"
+              step="0.01"
+              min="0"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+              Optional: Trail stop for position management
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Results */}
       {hasRequiredInputs && <TradeResults calculation={calculation} />}
+      
+      {/* TOS Order Ticket */}
+      {hasRequiredInputs && calculation.tosOrder && (
+        <TOSOrderDisplay order={calculation.tosOrder} />
+      )}
     </div>
   );
 }
