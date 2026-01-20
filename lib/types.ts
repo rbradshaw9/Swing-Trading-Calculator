@@ -3,13 +3,20 @@
  */
 
 export interface TradeInputs {
+  // Required inputs
+  direction: 'long' | 'short';
+  entryPrice: number;
+  atr: number;
   accountSize: number;
   riskPercent: number;
-  entryPrice: number;
-  stopPrice: number;
-  targetPrice?: number;
-  entryBufferCents?: number; // Buffer for limit order (cents)
-  trailingStopAmount?: number; // Trailing stop amount (dollars)
+  
+  // ATR-based multiples (with defaults)
+  stopMultiple: number; // ATR multiple for stop distance
+  targetRMultiple: number; // R-multiple for target
+  trailingMultiple: number; // ATR multiple for trailing stop
+  
+  // Order execution settings
+  entryBufferDollars: number; // Fixed dollar buffer for limit price
 }
 
 export interface TradeCalculation {
@@ -17,23 +24,31 @@ export interface TradeCalculation {
   errors: string[];
   warnings: string[];
   
+  // Direction
+  direction: 'long' | 'short';
+  
+  // Calculated prices
+  entryPrice: number;
+  stopPrice: number;
+  targetPrice: number;
+  
   // Risk calculations
-  riskPerUnit: number;
+  stopDistance: number; // ATR × stopMultiple
+  riskPerShare: number; // abs(entry - stop)
   maxDollarRisk: number;
   positionSize: number;
   
-  // Direction
-  direction: 'long' | 'short' | 'unknown';
-  
-  // Reward calculations (if target provided)
-  rewardPerUnit?: number;
-  totalReward?: number;
-  rMultiple?: number;
+  // Reward calculations
+  targetDistance: number;
+  totalReward: number;
+  rMultiple: number;
   
   // Display values
   totalCost: number;
   dollarRisk: number;
-  breakeven: number;
+  
+  // Trailing stop
+  trailingAmount: number; // ATR × trailingMultiple
   
   // Thinkorswim order ticket values
   tosOrder?: TOSOrderTicket;

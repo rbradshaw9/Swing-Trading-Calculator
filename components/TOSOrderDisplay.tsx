@@ -80,7 +80,7 @@ export default function TOSOrderDisplay({ order }: TOSOrderTicketProps) {
         )}
 
         {/* Trailing Stop */}
-        {order.trailingStopAmount !== undefined && (
+        {order.trailingStopAmount !== undefined && order.trailingStopAmount !== 0 && (
           <div className="bg-green-50 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-700 rounded-lg p-4">
             <h3 className="text-lg font-bold text-green-800 dark:text-green-300 mb-3">
               3. TRAILING STOP

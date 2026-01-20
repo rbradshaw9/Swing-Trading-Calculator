@@ -5,7 +5,7 @@ interface TradeResultsProps {
 }
 
 export default function TradeResults({ calculation }: TradeResultsProps) {
-  const { isValid, errors, warnings, direction, positionSize, rMultiple } = calculation;
+  const { isValid, errors, warnings, direction, positionSize, rMultiple, stopPrice, targetPrice, entryPrice } = calculation;
 
   // Determine R-multiple quality color
   const getRMultipleColor = (r?: number): string => {
@@ -88,7 +88,7 @@ export default function TradeResults({ calculation }: TradeResultsProps) {
                 Position Size
               </div>
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                {formatNumber(positionSize)} units
+                {formatNumber(positionSize)} shares
               </div>
             </div>
 
@@ -113,6 +113,33 @@ export default function TradeResults({ calculation }: TradeResultsProps) {
             </div>
           </div>
 
+          {/* Calculated Prices */}
+          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-3">
+              Calculated Prices (ATR-Based)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Entry:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatCurrency(entryPrice)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Stop:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatCurrency(stopPrice)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Target:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatCurrency(targetPrice)}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Risk Details */}
           <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
@@ -120,9 +147,15 @@ export default function TradeResults({ calculation }: TradeResultsProps) {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Risk per unit:</span>
+                <span className="text-gray-600 dark:text-gray-400">Stop distance:</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {formatCurrency(calculation.riskPerUnit)}
+                  {formatCurrency(calculation.stopDistance)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Risk per share:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatCurrency(calculation.riskPerShare)}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -132,53 +165,51 @@ export default function TradeResults({ calculation }: TradeResultsProps) {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Breakeven:</span>
+                <span className="text-gray-600 dark:text-gray-400">Trailing amount:</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {formatCurrency(calculation.breakeven)}
+                  {formatCurrency(calculation.trailingAmount)}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Reward Metrics (if target provided) */}
-          {calculation.rewardPerUnit !== undefined && (
-            <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                Reward Analysis
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-4">
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Reward per unit:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {formatCurrency(calculation.rewardPerUnit)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Total reward:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {formatCurrency(calculation.totalReward || 0)}
-                  </span>
-                </div>
+          {/* Reward Metrics */}
+          <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+              Reward Analysis
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-4">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Target distance:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatCurrency(calculation.targetDistance)}
+                </span>
               </div>
-
-              {/* R-Multiple Display */}
-              <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
-                    R-Multiple (Reward:Risk)
-                  </span>
-                  <span className={`text-3xl font-bold ${getRMultipleColor(rMultiple)}`}>
-                    {formatNumber(rMultiple || 0, 2)}R
-                  </span>
-                </div>
-                <div className="mt-2 text-xs text-gray-500 dark:text-gray-500">
-                  {(rMultiple || 0) >= 2 ? '✓ Good risk-reward ratio' : 
-                   (rMultiple || 0) >= 1 ? '⚠️ Marginal risk-reward' : 
-                   '❌ Poor risk-reward ratio'}
-                </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Total reward:</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {formatCurrency(calculation.totalReward)}
+                </span>
               </div>
             </div>
-          )}
+
+            {/* R-Multiple Display */}
+            <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  R-Multiple (Reward:Risk)
+                </span>
+                <span className={`text-3xl font-bold ${getRMultipleColor(rMultiple)}`}>
+                  {formatNumber(rMultiple, 2)}R
+                </span>
+              </div>
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-500">
+                {rMultiple >= 2 ? '✓ Good risk-reward ratio' : 
+                 rMultiple >= 1 ? '⚠️ Marginal risk-reward' : 
+                 '❌ Poor risk-reward ratio'}
+              </div>
+            </div>
+          </div>
         </>
       )}
 
@@ -186,8 +217,8 @@ export default function TradeResults({ calculation }: TradeResultsProps) {
       {isValid && positionSize === 0 && (
         <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
           <p className="text-sm text-orange-800 dark:text-orange-300">
-            <strong>Trade Not Viable:</strong> Risk per unit is too large relative to your account risk tolerance.
-            Consider waiting for a better setup with a tighter stop.
+            <strong>Trade Not Viable:</strong> Risk per share is too large relative to your account risk tolerance.
+            Consider reducing the stop multiple or waiting for lower ATR conditions.
           </p>
         </div>
       )}

@@ -1,6 +1,7 @@
 /**
  * Pure calculation functions for swing trade planning.
  * All functions are side-effect free and deterministic.
+ * Uses ATR-based calculations for stop, target, and trailing stop.
  */
 
 import type { TradeInputs, TradeCalculation, ValidationResult, TOSOrderTicket } from './types';
@@ -26,27 +27,36 @@ export function validateTradeInputs(inputs: TradeInputs): ValidationResult {
     warnings.push('Risk exceeds 2% per trade - high risk level');
   }
 
-  // Price validation
+  // Entry price validation
   if (inputs.entryPrice <= 0) {
     errors.push('Entry price must be greater than zero');
   }
-  if (inputs.stopPrice <= 0) {
-    errors.push('Stop price must be greater than zero');
+
+  // ATR validation
+  if (inputs.atr <= 0) {
+    errors.push('ATR must be greater than zero');
   }
 
-  // Entry vs Stop logic
-  if (inputs.entryPrice === inputs.stopPrice) {
-    errors.push('Entry and stop prices cannot be equal');
+  // Multiple validations
+  if (inputs.stopMultiple <= 0) {
+    errors.push('Stop multiple must be greater than zero');
+  }
+  
+  if (inputs.targetRMultiple <= 0) {
+    errors.push('Target R-multiple must be greater than zero');
+  } else if (inputs.targetRMultiple < 1) {
+    warnings.push('Target R-multiple below 1:1 - reward less than risk');
+  } else if (inputs.targetRMultiple < 2) {
+    warnings.push('Target R-multiple below 2:1 - consider better setups');
   }
 
-  // Target validation (if provided)
-  if (inputs.targetPrice !== undefined) {
-    if (inputs.targetPrice <= 0) {
-      errors.push('Target price must be greater than zero');
-    }
-    if (inputs.targetPrice === inputs.entryPrice) {
-      errors.push('Target and entry prices cannot be equal');
-    }
+  if (inputs.trailingMultiple < 0) {
+    errors.push('Trailing multiple cannot be negative');
+  }
+
+  // Entry buffer validation
+  if (inputs.entryBufferDollars < 0) {
+    errors.push('Entry buffer cannot be negative');
   }
 
   return {
@@ -57,25 +67,45 @@ export function validateTradeInputs(inputs: TradeInputs): ValidationResult {
 }
 
 /**
- * Determines trade direction based on entry and stop
+ * Calculates stop loss price based on ATR and direction
  */
-export function getTradeDirection(
+export function calculateStopPrice(
   entryPrice: number,
-  stopPrice: number
-): 'long' | 'short' | 'unknown' {
-  if (entryPrice > stopPrice) return 'long';
-  if (entryPrice < stopPrice) return 'short';
-  return 'unknown';
+  atr: number,
+  stopMultiple: number,
+  direction: 'long' | 'short'
+): { stopPrice: number; stopDistance: number } {
+  const stopDistance = atr * stopMultiple;
+  
+  let stopPrice: number;
+  if (direction === 'long') {
+    stopPrice = entryPrice - stopDistance;
+  } else {
+    stopPrice = entryPrice + stopDistance;
+  }
+  
+  return { stopPrice, stopDistance };
 }
 
 /**
- * Calculates risk per unit (price distance from entry to stop)
+ * Calculates target price based on risk per share and R-multiple
  */
-export function calculateRiskPerUnit(
+export function calculateTargetPrice(
   entryPrice: number,
-  stopPrice: number
-): number {
-  return Math.abs(entryPrice - stopPrice);
+  riskPerShare: number,
+  targetRMultiple: number,
+  direction: 'long' | 'short'
+): { targetPrice: number; targetDistance: number } {
+  const targetDistance = riskPerShare * targetRMultiple;
+  
+  let targetPrice: number;
+  if (direction === 'long') {
+    targetPrice = entryPrice + targetDistance;
+  } else {
+    targetPrice = entryPrice - targetDistance;
+  }
+  
+  return { targetPrice, targetDistance };
 }
 
 /**
@@ -89,68 +119,24 @@ export function calculateMaxDollarRisk(
 }
 
 /**
- * Calculates position size (number of shares/units)
+ * Calculates position size (number of shares)
  */
 export function calculatePositionSize(
   maxDollarRisk: number,
-  riskPerUnit: number
+  riskPerShare: number
 ): number {
-  if (riskPerUnit === 0) return 0;
-  return Math.floor(maxDollarRisk / riskPerUnit);
+  if (riskPerShare === 0) return 0;
+  return Math.floor(maxDollarRisk / riskPerShare);
 }
 
 /**
- * Calculates reward per unit (price distance from entry to target)
+ * Calculates trailing stop amount from ATR
  */
-export function calculateRewardPerUnit(
-  entryPrice: number,
-  targetPrice: number,
-  direction: 'long' | 'short' | 'unknown'
+export function calculateTrailingAmount(
+  atr: number,
+  trailingMultiple: number
 ): number {
-  if (direction === 'long') {
-    return Math.max(0, targetPrice - entryPrice);
-  } else if (direction === 'short') {
-    return Math.max(0, entryPrice - targetPrice);
-  }
-  return 0;
-}
-
-/**
- * Calculates R-multiple (reward-to-risk ratio)
- */
-export function calculateRMultiple(
-  rewardPerUnit: number,
-  riskPerUnit: number
-): number {
-  if (riskPerUnit === 0) return 0;
-  return rewardPerUnit / riskPerUnit;
-}
-
-/**
- * Validates target price based on trade direction
- */
-export function validateTarget(
-  entryPrice: number,
-  stopPrice: number,
-  targetPrice: number,
-  direction: 'long' | 'short' | 'unknown'
-): { isValid: boolean; error?: string } {
-  if (direction === 'long') {
-    if (targetPrice <= entryPrice) {
-      return {
-        isValid: false,
-        error: 'Long trade: Target must be above entry',
-      };
-    }
-  } else if (direction === 'short') {
-    if (targetPrice >= entryPrice) {
-      return {
-        isValid: false,
-        error: 'Short trade: Target must be below entry',
-      };
-    }
-  }
-  return { isValid: true };
+  return atr * trailingMultiple;
 }
 
 /**
@@ -159,40 +145,32 @@ export function validateTarget(
 export function calculateTOSOrder(
   entryPrice: number,
   stopPrice: number,
-  targetPrice: number | undefined,
+  targetPrice: number,
   positionSize: number,
-  direction: 'long' | 'short' | 'unknown',
-  entryBufferCents: number = 0,
-  trailingStopAmount: number = 0
-): TOSOrderTicket | undefined {
-  if (direction === 'unknown' || positionSize === 0) {
-    return undefined;
-  }
-
-  const bufferDollars = entryBufferCents / 100;
-
+  direction: 'long' | 'short',
+  entryBufferDollars: number,
+  trailingAmount: number
+): TOSOrderTicket {
   // Calculate entry order values
   const entryStopPrice = entryPrice;
   let entryLimitPrice: number;
 
   if (direction === 'long') {
     // Long: limit price is ABOVE stop (add buffer)
-    entryLimitPrice = entryStopPrice + bufferDollars;
+    entryLimitPrice = entryStopPrice + entryBufferDollars;
   } else {
     // Short: limit price is BELOW stop (subtract buffer)
-    entryLimitPrice = entryStopPrice - bufferDollars;
+    entryLimitPrice = entryStopPrice - entryBufferDollars;
   }
 
   // Calculate trailing stop amount with proper sign
-  let trailingAmount: number | undefined;
-  if (trailingStopAmount > 0) {
-    if (direction === 'long') {
-      // Long: trailing stop uses NEGATIVE value
-      trailingAmount = -Math.abs(trailingStopAmount);
-    } else {
-      // Short: trailing stop uses POSITIVE value
-      trailingAmount = Math.abs(trailingStopAmount);
-    }
+  let tosTrailingAmount: number;
+  if (direction === 'long') {
+    // Long: trailing stop uses NEGATIVE value
+    tosTrailingAmount = -Math.abs(trailingAmount);
+  } else {
+    // Short: trailing stop uses POSITIVE value
+    tosTrailingAmount = Math.abs(trailingAmount);
   }
 
   const order: TOSOrderTicket = {
@@ -204,7 +182,7 @@ export function calculateTOSOrder(
     profitTargetPrice: targetPrice,
     trailingStopType: direction === 'long' ? 'SELL TRAILSTOP' : 'BUY TRAILSTOP',
     trailingStopMark: 'MARK',
-    trailingStopAmount: trailingAmount,
+    trailingStopAmount: tosTrailingAmount,
     advancedOrder: '1st Triggers OCO',
   };
 
@@ -212,7 +190,7 @@ export function calculateTOSOrder(
 }
 
 /**
- * Main calculation function - computes all trade metrics
+ * Main calculation function - computes all trade metrics from ATR-based inputs
  */
 export function calculateTrade(inputs: TradeInputs): TradeCalculation {
   // Initial validation
@@ -223,100 +201,102 @@ export function calculateTrade(inputs: TradeInputs): TradeCalculation {
       isValid: false,
       errors: validation.errors,
       warnings: validation.warnings,
-      riskPerUnit: 0,
+      direction: inputs.direction,
+      entryPrice: inputs.entryPrice,
+      stopPrice: 0,
+      targetPrice: 0,
+      stopDistance: 0,
+      riskPerShare: 0,
       maxDollarRisk: 0,
       positionSize: 0,
-      direction: 'unknown',
+      targetDistance: 0,
+      totalReward: 0,
+      rMultiple: inputs.targetRMultiple,
       totalCost: 0,
       dollarRisk: 0,
-      breakeven: inputs.entryPrice,
+      trailingAmount: 0,
     };
   }
 
-  // Determine trade direction
-  const direction = getTradeDirection(inputs.entryPrice, inputs.stopPrice);
+  // Calculate stop price from ATR
+  const { stopPrice, stopDistance } = calculateStopPrice(
+    inputs.entryPrice,
+    inputs.atr,
+    inputs.stopMultiple,
+    inputs.direction
+  );
 
-  // Core risk calculations
-  const riskPerUnit = calculateRiskPerUnit(inputs.entryPrice, inputs.stopPrice);
+  // Calculate risk per share
+  const riskPerShare = Math.abs(inputs.entryPrice - stopPrice);
+
+  // Calculate position sizing
   const maxDollarRisk = calculateMaxDollarRisk(
     inputs.accountSize,
     inputs.riskPercent
   );
-  const positionSize = calculatePositionSize(maxDollarRisk, riskPerUnit);
+  const positionSize = calculatePositionSize(maxDollarRisk, riskPerShare);
 
-  // Additional warnings
+  // Warnings for position size
   const warnings = [...validation.warnings];
   if (positionSize === 0) {
-    warnings.push('Position size rounds to zero - risk per unit too large');
+    warnings.push('Position size rounds to zero - risk per share too large');
   }
+
+  // Calculate target price from R-multiple
+  const { targetPrice, targetDistance } = calculateTargetPrice(
+    inputs.entryPrice,
+    riskPerShare,
+    inputs.targetRMultiple,
+    inputs.direction
+  );
+
+  // Calculate rewards
+  const totalReward = positionSize * targetDistance;
 
   // Calculate actual dollar amounts
   const totalCost = positionSize * inputs.entryPrice;
-  const dollarRisk = positionSize * riskPerUnit;
+  const dollarRisk = positionSize * riskPerShare;
 
-  // Breakeven (entry price in this simple model)
-  const breakeven = inputs.entryPrice;
+  // Calculate trailing stop amount
+  const trailingAmount = calculateTrailingAmount(
+    inputs.atr,
+    inputs.trailingMultiple
+  );
 
-  // Build base result
+  // Build result
   const result: TradeCalculation = {
     isValid: true,
     errors: [],
     warnings,
-    riskPerUnit,
+    direction: inputs.direction,
+    entryPrice: inputs.entryPrice,
+    stopPrice,
+    targetPrice,
+    stopDistance,
+    riskPerShare,
     maxDollarRisk,
     positionSize,
-    direction,
+    targetDistance,
+    totalReward,
+    rMultiple: inputs.targetRMultiple,
     totalCost,
     dollarRisk,
-    breakeven,
+    trailingAmount,
   };
 
-  // Calculate reward metrics if target is provided
-  if (inputs.targetPrice !== undefined) {
-    const targetValidation = validateTarget(
-      inputs.entryPrice,
-      inputs.stopPrice,
-      inputs.targetPrice,
-      direction
-    );
-
-    if (!targetValidation.isValid) {
-      result.errors.push(targetValidation.error!);
-      result.isValid = false;
-    } else {
-      const rewardPerUnit = calculateRewardPerUnit(
-        inputs.entryPrice,
-        inputs.targetPrice,
-        direction
-      );
-      const rMultiple = calculateRMultiple(rewardPerUnit, riskPerUnit);
-      const totalReward = positionSize * rewardPerUnit;
-
-      result.rewardPerUnit = rewardPerUnit;
-      result.totalReward = totalReward;
-      result.rMultiple = rMultiple;
-
-      // R-multiple quality warnings
-      if (rMultiple < 1) {
-        warnings.push('R-multiple below 1:1 - reward less than risk');
-      } else if (rMultiple < 2) {
-        warnings.push('R-multiple below 2:1 - consider better setups');
-      }
-    }
-  }
-
   // Calculate TOS order ticket
-  const tosOrder = calculateTOSOrder(
-    inputs.entryPrice,
-    inputs.stopPrice,
-    inputs.targetPrice,
-    positionSize,
-    direction,
-    inputs.entryBufferCents,
-    inputs.trailingStopAmount
-  );
-
-  result.tosOrder = tosOrder;
+  if (positionSize > 0) {
+    const tosOrder = calculateTOSOrder(
+      inputs.entryPrice,
+      stopPrice,
+      targetPrice,
+      positionSize,
+      inputs.direction,
+      inputs.entryBufferDollars,
+      trailingAmount
+    );
+    result.tosOrder = tosOrder;
+  }
 
   return result;
 }
