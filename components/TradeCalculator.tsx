@@ -36,11 +36,10 @@ export default function TradeCalculator() {
     entryBufferDollars: 0.15,
     stopMultiple: 2.0,
     targetRMultiple: 2.0,
-    trailingMultiple: 0.5,
+    trailingMultiple: 1.25,
   };
 
-  // Get risk level label
-  const getRiskLabel = (percent: number): { label: string; color: string } => {
+  const getRiskLabel = (percent: number) => {
     if (percent < 0.25) return { label: 'Very conservative', color: 'text-green-600 dark:text-green-400' };
     if (percent <= 1.5) return { label: 'Standard', color: 'text-blue-600 dark:text-blue-400' };
     if (percent <= 2.0) return { label: 'Moderate', color: 'text-yellow-600 dark:text-yellow-400' };
@@ -247,7 +246,7 @@ export default function TradeCalculator() {
               <span className="font-medium">Target:</span> 2.0R
             </div>
             <div>
-              <span className="font-medium">Trail:</span> 0.5 × ATR
+              <span className="font-medium">Trail:</span> 1.25 × ATR
             </div>
           </div>
         </div>

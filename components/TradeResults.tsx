@@ -189,6 +189,9 @@ export default function TradeResults({ calculation }: TradeResultsProps) {
                 </span>
               </div>
             </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              ATR-based trailing stop (1.25× ATR) — Designed to allow trends to continue without premature exit
+            </div>
           </div>
 
           {/* Capital Commitment */}
