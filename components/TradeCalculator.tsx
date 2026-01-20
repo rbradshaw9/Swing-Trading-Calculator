@@ -25,21 +25,19 @@ export default function TradeCalculator() {
     }
   };
 
-  // Required inputs
+  // Required inputs only
   const [direction, setDirection] = useState<'long' | 'short'>('long');
   const [entryPrice, setEntryPrice] = useState<string>('');
   const [atr, setATR] = useState<string>('');
-  
-  // Risk tolerance
-  const [useFixedDollarRisk, setUseFixedDollarRisk] = useState<boolean>(false);
   const [riskPercent, setRiskPercent] = useState<string>('1');
-  const [fixedDollarRisk, setFixedDollarRisk] = useState<string>('100');
   
-  // Defaults (editable)
-  const [stopMultiple, setStopMultiple] = useState<string>('2');
-  const [targetRMultiple, setTargetRMultiple] = useState<string>('2');
-  const [trailingMultiple, setTrailingMultiple] = useState<string>('1');
-  const [entryBufferDollars, setEntryBufferDollars] = useState<string>('0.05');
+  // Fixed defaults (not editable by user)
+  const DEFAULTS = {
+    entryBufferDollars: 0.15,
+    stopMultiple: 2.0,
+    targetRMultiple: 2.0,
+    trailingMultiple: 0.5,
+  };
 
   // Get risk level label
   const getRiskLabel = (percent: number): { label: string; color: string } => {
@@ -54,9 +52,7 @@ export default function TradeCalculator() {
 
   // Calculate max dollar risk for display
   const accountSizeNum = parseFloat(accountSize) || 0;
-  const maxDollarRiskDisplay = useFixedDollarRisk 
-    ? parseFloat(fixedDollarRisk) || 0
-    : (accountSizeNum * riskPercentNum) / 100;
+  const maxDollarRiskDisplay = (accountSizeNum * riskPercentNum) / 100;
 
   // Parse inputs and calculate trade
   const calculation = useMemo(() => {
@@ -65,19 +61,19 @@ export default function TradeCalculator() {
       entryPrice: parseFloat(entryPrice) || 0,
       atr: parseFloat(atr) || 0,
       accountSize: accountSizeNum,
-      useFixedDollarRisk,
+      useFixedDollarRisk: false,
       riskPercent: riskPercentNum,
-      fixedDollarRisk: parseFloat(fixedDollarRisk) || 0,
-      stopMultiple: parseFloat(stopMultiple) || 0,
-      targetRMultiple: parseFloat(targetRMultiple) || 0,
-      trailingMultiple: parseFloat(trailingMultiple) || 0,
-      entryBufferDollars: parseFloat(entryBufferDollars) || 0,
+      fixedDollarRisk: 0,
+      stopMultiple: DEFAULTS.stopMultiple,
+      targetRMultiple: DEFAULTS.targetRMultiple,
+      trailingMultiple: DEFAULTS.trailingMultiple,
+      entryBufferDollars: DEFAULTS.entryBufferDollars,
     };
 
     return calculateTrade(inputs);
-  }, [direction, entryPrice, atr, accountSizeNum, useFixedDollarRisk, riskPercentNum, fixedDollarRisk, stopMultiple, targetRMultiple, trailingMultiple, entryBufferDollars]);
+  }, [direction, entryPrice, atr, accountSizeNum, riskPercentNum]);
 
-  const hasRequiredInputs = entryPrice && atr && accountSize && (useFixedDollarRisk ? fixedDollarRisk : riskPercent);
+  const hasRequiredInputs = entryPrice && atr && accountSize && riskPercent;
 
   // Don't render until localStorage is loaded
   if (!isLoaded) {
@@ -202,197 +198,58 @@ export default function TradeCalculator() {
           Risk Tolerance
         </h2>
         
-        {/* Risk Method Toggle */}
-        <div className="mb-4 flex items-center gap-4">
-          <button
-            onClick={() => setUseFixedDollarRisk(false)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              !useFixedDollarRisk
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-            }`}
-          >
-            Percent-Based (Default)
-          </button>
-          <button
-            onClick={() => setUseFixedDollarRisk(true)}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              useFixedDollarRisk
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-            }`}
-          >
-            Fixed Dollar (Advanced)
-          </button>
-        </div>
-
-        {!useFixedDollarRisk ? (
-          <div>
-            <label
-              htmlFor="riskPercent"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Risk Per Trade (%)
-            </label>
-            <input
-              id="riskPercent"
-              type="number"
-              value={riskPercent}
-              onChange={(e) => setRiskPercent(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md 
-                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
-                       focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="1.0"
-              step="0.1"
-              min="0"
-            />
-            <div className="mt-2 flex items-center justify-between text-sm">
-              <span className={`font-medium ${riskLabel.color}`}>
-                {riskLabel.label}
-              </span>
-              <span className="text-gray-600 dark:text-gray-400">
-                Max Dollar Risk: <span className="font-semibold text-gray-900 dark:text-gray-100">
-                  ${maxDollarRiskDisplay.toFixed(2)}
-                </span>
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <label
-              htmlFor="fixedDollarRisk"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Fixed Dollar Risk Per Trade
-            </label>
-            <input
-              id="fixedDollarRisk"
-              type="number"
-              value={fixedDollarRisk}
-              onChange={(e) => setFixedDollarRisk(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md 
-                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
-                       focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="100"
-              step="10"
-              min="0"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-              Advanced: Set a specific dollar amount to risk per trade
-            </p>
-          </div>
-        )}
-      </section>
-
-      {/* ATR-Based Multiples */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          ATR-Based Multiples
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label
-              htmlFor="stopMultiple"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Stop Distance (× ATR)
-            </label>
-            <input
-              id="stopMultiple"
-              type="number"
-              value={stopMultiple}
-              onChange={(e) => setStopMultiple(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md 
-                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
-                       focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="2"
-              step="0.1"
-              min="0"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-              Stop = Entry {direction === 'long' ? '−' : '+'} (ATR × {stopMultiple || '?'})
-            </p>
-          </div>
-
-          <div>
-            <label
-              htmlFor="targetRMultiple"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Target R-Multiple
-            </label>
-            <input
-              id="targetRMultiple"
-              type="number"
-              value={targetRMultiple}
-              onChange={(e) => setTargetRMultiple(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md 
-                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
-                       focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="2"
-              step="0.1"
-              min="0"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-              Target distance = Risk × {targetRMultiple || '?'}
-            </p>
-          </div>
-
-          <div>
-            <label
-              htmlFor="trailingMultiple"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Trailing Stop (× ATR)
-            </label>
-            <input
-              id="trailingMultiple"
-              type="number"
-              value={trailingMultiple}
-              onChange={(e) => setTrailingMultiple(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md 
-                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
-                       focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="1"
-              step="0.1"
-              min="0"
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-              Trail amount = ATR × {trailingMultiple || '?'}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Order Execution Settings */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          Order Execution
-        </h2>
         <div>
           <label
-            htmlFor="entryBufferDollars"
+            htmlFor="riskPercent"
             className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
-            Entry Limit Buffer ($)
+            Risk Per Trade (%)
           </label>
           <input
-            id="entryBufferDollars"
+            id="riskPercent"
             type="number"
-            value={entryBufferDollars}
-            onChange={(e) => setEntryBufferDollars(e.target.value)}
+            value={riskPercent}
+            onChange={(e) => setRiskPercent(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md 
                      bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
                      focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="0.05"
-            step="0.01"
+            placeholder="1.0"
+            step="0.1"
             min="0"
           />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-            {direction === 'long' 
-              ? 'Long: Limit = Stop + Buffer (ensures fill above entry)'
-              : 'Short: Limit = Stop − Buffer (ensures fill below entry)'}
-          </p>
+          <div className="mt-2 flex items-center justify-between text-sm">
+            <span className={`font-medium ${riskLabel.color}`}>
+              {riskLabel.label}
+            </span>
+            <span className="text-gray-600 dark:text-gray-400">
+              Max Dollar Risk: <span className="font-semibold text-gray-900 dark:text-gray-100">
+                ${maxDollarRiskDisplay.toFixed(2)}
+              </span>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Default Rules Display */}
+      <section className="mb-8">
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+            Using Default Rules
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs text-gray-700 dark:text-gray-300">
+            <div>
+              <span className="font-medium">Entry Buffer:</span> $0.15
+            </div>
+            <div>
+              <span className="font-medium">Stop:</span> 2.0 × ATR
+            </div>
+            <div>
+              <span className="font-medium">Target:</span> 2.0R
+            </div>
+            <div>
+              <span className="font-medium">Trail:</span> 0.5 × ATR
+            </div>
+          </div>
         </div>
       </section>
 
